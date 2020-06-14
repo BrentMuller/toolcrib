@@ -20,11 +20,15 @@ executable toolCrib
   -- other-modules:
   -- other-extensions:
   build-depends:       base >=4.11 && <4.12,
-                       cgi,
+--                       cgi,
                        blaze-html,
                        bytestring,
                        HDBC,
-                       HDBC-odbc
+                       HDBC-odbc,
+                       scotty,
+                       heist,
+                       http-types,
+                       text
 --                       mysql-haskell
   --                     xhtml 
                        --,
