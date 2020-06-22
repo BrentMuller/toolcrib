@@ -28,7 +28,9 @@ executable toolCrib
                        scotty,
                        heist,
                        http-types,
-                       text
+                       text,
+                       unordered-containers,
+                       lens-simple
 --                       mysql-haskell
   --                     xhtml 
                        --,
