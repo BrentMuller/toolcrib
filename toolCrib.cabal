@@ -30,7 +30,11 @@ executable toolCrib
                        http-types,
                        text,
                        unordered-containers,
-                       lens-simple
+                       lens-simple,
+                       xmlhtml,
+                       map-syntax,
+                       binary
+
 --                       mysql-haskell
   --                     xhtml 
                        --,
