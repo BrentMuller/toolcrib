@@ -5,6 +5,7 @@ import Text.Blaze.Html5 as H hiding (main)
 import Text.Blaze.Html5.Attributes as A
 import Text.Blaze.Html.Renderer.Utf8 as Hr
 import Text.Blaze.Renderer.XmlHtml
+import Text.XmlHtml
 --import Text.Blaze.Html.Renderer.String as Hr
 import Data.ByteString.Char8 as BS 
 import Database.HDBC
@@ -46,6 +47,7 @@ main = do
 
     let hc =  set hcInterpretedSplices defaultInterpretedSplices $
               hcInterpretedSplices .~ ("nullSplice" ## nullSplice) $ 
+              hcInterpretedSplices .~ ("intSplice" ## intSplice 1) $ 
               hcTemplateLocations .~ [loadTemplates $ T.unpack templateLocation] $ 
               set hcNamespace "" emptyHeistConfig::HeistConfig ActionM
 
@@ -65,20 +67,31 @@ main = do
       addroute GET "/test2" $ Scty.text $ d
     ----
       addroute GET "/splice" $ do -- $ Scty.html $ TE.decodeUtf8 $ toLazyByteString bdr
-        liftAndCatchIO $ print ("heist templates: " ++ (show $templateNames hSt))
-        liftAndCatchIO $ print ("heist splices: " ++ (show $spliceNames hSt))
-        maybBuilder<- renderTemplate hSt "test"
+--        liftAndCatchIO $ print ("heist templates: " ++ (show $templateNames hSt))
+--        liftAndCatchIO $ print ("heist splices: " ++ (show $spliceNames hSt))
+ --       maybBuilder<- renderTemplate hSt "test"
+-- evalHeistT :: Monad m => HeistT n m a -> Node -> HeistState n -> m a
+-- callTemplate :: Monad n	 => ByteString-> Splices (Splice n)-> HeistT n n Template	
+        let ct = callTemplate "test" ("intSplice" ## intSplice 2)
+        tst<-evalHeistT ct (TextNode "") hSt 
+        let bdr = renderHtmlFragment UTF8 tst
+ {-        
         bdr<- case maybBuilder of
             Just (buildr,mime)-> do
 --                print $ "mimeType: " ++ BS.unpack mime
                 return buildr
             Nothing -> return Bldr.empty
+            -}
         Scty.html $ TE.decodeUtf8 $ toLazyByteString bdr
-        
+   --     Scty.html $ TE.decodeUtf8 $ toLazyByteString tst
       return ()
 --------------------------------------------------------------------------------
 nullSplice:: I.Splice ActionM
-nullSplice = return $ renderHtmlNodes "<h1>NULL<h1/>"
+nullSplice = return $ renderHtmlNodes "<h1>NULL</h1>"
+--------------------------------------------------------------------------------
+intSplice:: Int -> I.Splice ActionM
+intSplice i = return $ renderHtmlNodes $ toHtml $ h1 $ 
+                string ("Int is : " ++ show i ++ " m'kay")
 --------------------------------------------------------------------------------
 getState::(Either [String] (HeistState ActionM))->HeistState ActionM
 getState hs= do
@@ -90,8 +103,7 @@ connectDB::IO Connection
 connectDB = do
     conn <- connectODBC connectionString 
     return conn
---------------------------------------------------------------------------------
-
+-------------------------------------------------------------------------------- 
 
 
 
