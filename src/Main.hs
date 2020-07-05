@@ -23,6 +23,8 @@ import Data.Text.Lazy as T
 import Data.Map.Syntax
 import Data.HashMap.Strict as Hash
 import Lens.Simple as L
+------
+import BlazeUtil
 --------------------------------------------------------------------------------
 templateLocation::Text
 templateLocation = "c:/Users/brent/toolcrib/templates/"
@@ -34,17 +36,12 @@ connectionString = "Driver={MySQL ODBC 8.0 Unicode Driver};\
 --------------------------------------------------------------------------------
 main :: IO ()
 main = do
--- {-
     conn<-handleSqlError $ do
         conn <- connectODBC connectionString 
         return conn
-    result<- quickQuery conn "Select * from tools" []
---    print $ "result: " ++ show result
- --   -}
+        
 --    conn<-catchSql connectDB (\e->print e)
     ----
-    --
-
     let hc =  set hcInterpretedSplices defaultInterpretedSplices $
               hcInterpretedSplices .~ ("nullSplice" ## nullSplice) $ 
               hcInterpretedSplices .~ ("intSplice" ## intSplice 1) $ 
@@ -55,35 +52,44 @@ main = do
     let hSt = getState eitherHc
     ------
     scotty 3000 $ do
+    ----
       get "/test/:word" $ do
         beam <- Scty.param "word"
         Scty.html $ mconcat ["<h1>Scotty, ", beam, " me up!</h1>"]    
     ----
       addroute GET "/" $ Scty.text "dammit, jim, I'm a doctor, not a haskell programmer"
-      let result' = fmap (++ [SqlString"\n"]) result ::[[SqlValue]]
-      let a = Prelude.concat result' :: [SqlValue]
-      let b = fmap ((T.append "\t").fromSql) a :: [Text]
-      let d = T.concat b :: Text
-      addroute GET "/test2" $ Scty.text $ d
     ----
-      addroute GET "/splice" $ do -- $ Scty.html $ TE.decodeUtf8 $ toLazyByteString bdr
---        liftAndCatchIO $ print ("heist templates: " ++ (show $templateNames hSt))
---        liftAndCatchIO $ print ("heist splices: " ++ (show $spliceNames hSt))
- --       maybBuilder<- renderTemplate hSt "test"
+      addroute GET "/test2" $ do
+          result<- liftAndCatchIO $ quickQuery conn "Select * from tools" []
+          let result' = fmap (++ [SqlString"\n"]) result ::[[SqlValue]]
+          let a = Prelude.concat result' :: [SqlValue]
+          let b = fmap ((T.append "\t").fromSql) a :: [Text]
+          let d = T.concat b :: Text
+          Scty.text $ d
+    ----
+      addroute GET "/splice" $ do 
 -- evalHeistT :: Monad m => HeistT n m a -> Node -> HeistState n -> m a
 -- callTemplate :: Monad n	 => ByteString-> Splices (Splice n)-> HeistT n n Template	
         let ct = callTemplate "test" ("intSplice" ## intSplice 2)
         tst<-evalHeistT ct (TextNode "") hSt 
         let bdr = renderHtmlFragment UTF8 tst
- {-        
+        Scty.html $ TE.decodeUtf8 $ toLazyByteString bdr
+    ----
+      addroute GET "/splice_tab" $ do 
+        undefined
+--        result<- liftAndCatchIO $ quickQuery conn "Select * from tools" []
+
+ --       Scty.html $ TE.decodeUtf8 $ toLazyByteString bdr
+    ----
+      addroute GET "/test3" $ do -- 
+   --     let ct = callTemplate "test" ("intSplice" ## intSplice 2)
+        maybBuilder<- renderTemplate hSt "receipt"
         bdr<- case maybBuilder of
             Just (buildr,mime)-> do
 --                print $ "mimeType: " ++ BS.unpack mime
                 return buildr
             Nothing -> return Bldr.empty
-            -}
         Scty.html $ TE.decodeUtf8 $ toLazyByteString bdr
-   --     Scty.html $ TE.decodeUtf8 $ toLazyByteString tst
       return ()
 --------------------------------------------------------------------------------
 nullSplice:: I.Splice ActionM
@@ -92,6 +98,10 @@ nullSplice = return $ renderHtmlNodes "<h1>NULL</h1>"
 intSplice:: Int -> I.Splice ActionM
 intSplice i = return $ renderHtmlNodes $ toHtml $ h1 $ 
                 string ("Int is : " ++ show i ++ " m'kay")
+------------------------------------------------------------------------------
+tableSplice::Monad m=>[T.Text]->[[T.Text]]->I.Splice m
+tableSplice headings rows= do
+    return $ renderHtmlNodes $ blazeTable headings rows
 --------------------------------------------------------------------------------
 getState::(Either [String] (HeistState ActionM))->HeistState ActionM
 getState hs= do

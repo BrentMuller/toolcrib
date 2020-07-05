@@ -17,11 +17,11 @@ cabal-version:       >=1.10
 
 executable toolCrib
   main-is:             Main.hs
-  -- other-modules:
+  other-modules:       BlazeUtil
   -- other-extensions:
   build-depends:       base >=4.11 && <4.12,
---                       cgi,
                        blaze-html,
+                       blaze-markup,
                        bytestring,
                        HDBC,
                        HDBC-odbc,
@@ -35,10 +35,6 @@ executable toolCrib
                        map-syntax,
                        binary
 
---                       mysql-haskell
-  --                     xhtml 
-                       --,
---                       fastcgi
                       
   hs-source-dirs:      src
   default-language:    Haskell2010
