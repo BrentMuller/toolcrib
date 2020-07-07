@@ -19,7 +19,8 @@ import Data.Text.Lazy.Encoding as TE
 import Heist
 import Heist.Interpreted as I
 import Network.HTTP.Types
-import Data.Text.Lazy as T
+import qualified Data.Text.Lazy as LT
+import Data.Text as T
 import Data.Map.Syntax
 import Data.HashMap.Strict as Hash
 import Lens.Simple as L
@@ -39,11 +40,14 @@ main = do
     conn<-handleSqlError $ do
         conn <- connectODBC connectionString 
         return conn
-        
+    colDesc <-describeTable conn "tools"    
+    let colNames = fmap fst colDesc
+    print colNames
+--    print =<< describeTable conn "tools"    
 --    conn<-catchSql connectDB (\e->print e)
     ----
     let hc =  set hcInterpretedSplices defaultInterpretedSplices $
-              hcInterpretedSplices .~ ("nullSplice" ## nullSplice) $ 
+              hcInterpretedSplices .~ ("tableSplice" ## tableSplice [] [[]]) $ 
               hcInterpretedSplices .~ ("intSplice" ## intSplice 1) $ 
               hcTemplateLocations .~ [loadTemplates $ T.unpack templateLocation] $ 
               set hcNamespace "" emptyHeistConfig::HeistConfig ActionM
@@ -65,7 +69,7 @@ main = do
           let a = Prelude.concat result' :: [SqlValue]
           let b = fmap ((T.append "\t").fromSql) a :: [Text]
           let d = T.concat b :: Text
-          Scty.text $ d
+          Scty.html  $ LT.fromStrict d
     ----
       addroute GET "/splice" $ do 
 -- evalHeistT :: Monad m => HeistT n m a -> Node -> HeistState n -> m a
@@ -76,21 +80,31 @@ main = do
         Scty.html $ TE.decodeUtf8 $ toLazyByteString bdr
     ----
       addroute GET "/splice_tab" $ do 
-        undefined
---        result<- liftAndCatchIO $ quickQuery conn "Select * from tools" []
-
- --       Scty.html $ TE.decodeUtf8 $ toLazyByteString bdr
+        colDesc <-liftAndCatchIO $describeTable conn "tools"    
+        let colNames = fmap (T.pack.fst) colDesc
+        table<- liftAndCatchIO $ quickQuery conn "Select * from tools" []
+        let rows = convert2Text table
+        let ct = callTemplate "tools" ("tableSplice" ## tableSplice colNames rows)
+        tst<-evalHeistT ct (TextNode "") hSt 
+        let bdr = renderHtmlFragment UTF8 tst
+        Scty.html $ TE.decodeUtf8 $ toLazyByteString bdr
     ----
       addroute GET "/test3" $ do -- 
-   --     let ct = callTemplate "test" ("intSplice" ## intSplice 2)
         maybBuilder<- renderTemplate hSt "receipt"
         bdr<- case maybBuilder of
             Just (buildr,mime)-> do
---                print $ "mimeType: " ++ BS.unpack mime
                 return buildr
             Nothing -> return Bldr.empty
         Scty.html $ TE.decodeUtf8 $ toLazyByteString bdr
       return ()
+--------------------------------------------------------------------------------
+convertSql2Text::[SqlValue]->[T.Text]
+convertSql2Text [] = []
+convertSql2Text (x:xs) = fromSql x : convertSql2Text xs
+--------------------------------------------------------------------------------
+convert2Text::[[SqlValue]]->[[T.Text]]
+convert2Text  [] = []
+convert2Text (x:xs) = convertSql2Text x : convert2Text xs 
 --------------------------------------------------------------------------------
 nullSplice:: I.Splice ActionM
 nullSplice = return $ renderHtmlNodes "<h1>NULL</h1>"
@@ -99,9 +113,18 @@ intSplice:: Int -> I.Splice ActionM
 intSplice i = return $ renderHtmlNodes $ toHtml $ h1 $ 
                 string ("Int is : " ++ show i ++ " m'kay")
 ------------------------------------------------------------------------------
-tableSplice::Monad m=>[T.Text]->[[T.Text]]->I.Splice m
+tableSplice::[T.Text]->[[T.Text]]->I.Splice ActionM
 tableSplice headings rows= do
     return $ renderHtmlNodes $ blazeTable headings rows
+--------------------------------------------------------------------------------
+bootStrapWarning::T.Text->I.Splice ActionM
+bootStrapWarning msg = do
+    return $ renderHtmlNodes $ bootStrapWarn msg
+------------------------------------------------------------------------------
+-- |
+autoCompleteSplice::T.Text -> [T.Text]->I.Splice ActionM
+autoCompleteSplice listId txt =
+    return $ renderHtmlNodes $ blazeDataList listId txt
 --------------------------------------------------------------------------------
 getState::(Either [String] (HeistState ActionM))->HeistState ActionM
 getState hs= do
