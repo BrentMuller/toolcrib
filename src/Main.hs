@@ -6,6 +6,7 @@ import Text.Blaze.Html5.Attributes as A
 import Text.Blaze.Html.Renderer.Utf8 as Hr
 import Text.Blaze.Renderer.XmlHtml
 import Text.XmlHtml
+import Text.Printf
 --import Text.Blaze.Html.Renderer.String as Hr
 import Data.ByteString.Char8 as BS 
 import Database.HDBC
@@ -100,7 +101,11 @@ main = do
 --------------------------------------------------------------------------------
 convertSql2Text::[SqlValue]->[T.Text]
 convertSql2Text [] = []
-convertSql2Text (x:xs) = fromSql x : convertSql2Text xs
+convertSql2Text (x:xs) = format x : convertSql2Text xs
+--------------------------------------------------------------------------------
+format::SqlValue->Text
+format (SqlDouble n) = T.pack $ printf "%.3f" n
+format x = fromSql x
 --------------------------------------------------------------------------------
 convert2Text::[[SqlValue]]->[[T.Text]]
 convert2Text  [] = []
