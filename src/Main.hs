@@ -25,6 +25,7 @@ import Data.Text as T
 import Data.Map.Syntax
 import Data.HashMap.Strict as Hash
 import Lens.Simple as L
+import Network.Wai.Middleware.Static
 ------
 import BlazeUtil
 --------------------------------------------------------------------------------
@@ -57,6 +58,7 @@ main = do
     let hSt = getState eitherHc
     ------
     scotty 3000 $ do
+      middleware $ staticPolicy (addBase "static")
     ----
       get "/test/:word" $ do
         beam <- Scty.param "word"
