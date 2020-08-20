@@ -19,7 +19,7 @@ executable toolCrib
   main-is:             Main.hs
   other-modules:       BlazeUtil
   -- other-extensions:
-  build-depends:       base >=4.11 && <4.12,
+  build-depends:       base >=4.11,
                        blaze-html,
                        blaze-markup,
                        bytestring,
