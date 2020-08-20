@@ -33,8 +33,8 @@ templateLocation = "c:/Users/brent/toolcrib/templates/"
 --------------------------------------------------------------------------------
 connectionString::String
 connectionString = "Driver={MySQL ODBC 8.0 Unicode Driver};\
-                            \Server=192.168.0.3;Database=diam_oj;\
-                            \Uid=root;Pwd=12thandEastman;"
+                            \Server=localhost;Database=diamondoj;\
+                            \Uid=root;Pwd=22601959;"
 --------------------------------------------------------------------------------
 main :: IO ()
 main = do
