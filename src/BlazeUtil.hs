@@ -22,6 +22,7 @@ blazeTable headings rows = do
             H.thead ! A.class_ "thead-dark"$ do
                     blazeTableHeadings headings
                     blazeTableRows rows 
+{-
 ------------------------------------------------------------------------------
 blazeTableHeadings::[T.Text]->H.Markup 
 blazeTableHeadings textList = do
@@ -31,6 +32,19 @@ blazeTableHeadings textList = do
     blazeTableHeadings' [] = Empty ()
     blazeTableHeadings' (x:xs) = do
         H.th $ toHtml x 
+        blazeTableHeadings' xs
+        -}
+------------------------------------------------------------------------------
+blazeTableHeadings::[T.Text]->H.Markup 
+blazeTableHeadings textList = do
+    H.tr $ do
+        blazeTableHeadings' textList 
+    where
+    blazeTableHeadings' [] = H.th "clipboard"
+    blazeTableHeadings' (x:xs) = do
+        H.th $ button H.! A.class_ "sqlButton" 
+            H.! A.type_ "Button" 
+                H.! A.onclick "buttonClick(this.innerHTML)"$ toHtml x 
         blazeTableHeadings' xs
 ------------------------------------------------------------------------------
 blazeTableRows::[[T.Text]]->H.Markup 
@@ -44,7 +58,10 @@ blazeTableRow textList = do
     H.tr $ do
         blazeTableRow' textList
         where
-        blazeTableRow' [] = Empty ()
+        blazeTableRow' [] = H.td $ button H.! A.class_ "sqlButton"
+          H.! A.onclick 
+          "buttonCopy(this.parentNode.parentNode. \
+              \ childNodes[8].innerHTML)"$ "copy" 
         blazeTableRow' (x:xs) = do
             H.td $ toHtml x 
             blazeTableRow' xs
