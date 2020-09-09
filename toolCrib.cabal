@@ -33,7 +33,8 @@ executable toolCrib
                        lens-simple,
                        xmlhtml,
                        map-syntax,
-                       binary
+                       binary,
+                       wai-middleware-static
 
                       
   hs-source-dirs:      src

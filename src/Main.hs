@@ -1,30 +1,31 @@
 {-# LANGUAGE OverloadedStrings #-}
 module Main where
+import Prelude as P
 import Control.Monad (forM_)
-import Text.Blaze.Html5 as H hiding (main)
-import Text.Blaze.Html5.Attributes as A
-import Text.Blaze.Html.Renderer.Utf8 as Hr
-import Text.Blaze.Renderer.XmlHtml
-import Text.XmlHtml
-import Text.Printf
---import Text.Blaze.Html.Renderer.String as Hr
-import Data.ByteString.Char8 as BS 
 import Database.HDBC
 import Database.HDBC.ODBC
-import Web.Scotty as Scty
-import Web.Scotty.Internal.Types
+import Data.ByteString.Lazy as BS 
+import Data.HashMap.Strict as Hash
 import Data.Monoid (mconcat)
 import Data.Binary.Builder as Bldr
---import Data.Text
 import Data.Text.Lazy.Encoding as TE
+import Data.Text as T
+import Data.Map.Syntax
 import Heist
 import Heist.Interpreted as I
 import Network.HTTP.Types
 import qualified Data.Text.Lazy as LT
-import Data.Text as T
-import Data.Map.Syntax
-import Data.HashMap.Strict as Hash
 import Lens.Simple as L
+import Network.Wai.Middleware.Static
+import Text.Blaze.Html5 as H hiding (main)
+import Text.Blaze.Html5.Attributes as A
+import Text.Blaze.Html.Renderer.Utf8 as Hr
+import Text.Blaze.Html.Renderer.Text as Ht
+import Text.Blaze.Renderer.XmlHtml
+import Text.XmlHtml
+import Text.Printf
+import Web.Scotty as Scty
+import Web.Scotty.Internal.Types
 ------
 import BlazeUtil
 --------------------------------------------------------------------------------
@@ -57,6 +58,7 @@ main = do
     let hSt = getState eitherHc
     ------
     scotty 3000 $ do
+      middleware $ staticPolicy (addBase "static")
     ----
       get "/test/:word" $ do
         beam <- Scty.param "word"
@@ -67,14 +69,12 @@ main = do
       addroute GET "/test2" $ do
           result<- liftAndCatchIO $ quickQuery conn "Select * from tools" []
           let result' = fmap (++ [SqlString"\n"]) result ::[[SqlValue]]
-          let a = Prelude.concat result' :: [SqlValue]
+          let a = P.concat result' :: [SqlValue]
           let b = fmap ((T.append "\t").fromSql) a :: [Text]
           let d = T.concat b :: Text
           Scty.html  $ LT.fromStrict d
     ----
       addroute GET "/splice" $ do 
--- evalHeistT :: Monad m => HeistT n m a -> Node -> HeistState n -> m a
--- callTemplate :: Monad n	 => ByteString-> Splices (Splice n)-> HeistT n n Template	
         let ct = callTemplate "test" ("intSplice" ## intSplice 2)
         tst<-evalHeistT ct (TextNode "") hSt 
         let bdr = renderHtmlFragment UTF8 tst
@@ -83,12 +83,23 @@ main = do
       addroute GET "/splice_tab" $ do 
         colDesc <-liftAndCatchIO $describeTable conn "tools"    
         let colNames = fmap (T.pack.fst) colDesc
-        table<- liftAndCatchIO $ quickQuery conn "Select * from tools" []
+        table<- liftAndCatchIO $ quickQuery conn "Select * from tools order by majorDia" []
         let rows = convert2Text table
         let ct = callTemplate "tools" ("tableSplice" ## tableSplice colNames rows)
         tst<-evalHeistT ct (TextNode "") hSt 
         let bdr = renderHtmlFragment UTF8 tst
         Scty.html $ TE.decodeUtf8 $ toLazyByteString bdr
+    ----
+      addroute POST "/splice_tab" $ do 
+        response<-Scty.body
+        colDesc <-liftAndCatchIO $describeTable conn "tools"    
+        let colNames = fmap (T.pack.fst) colDesc
+        let response' = (sanitizeString.show) response
+        table<- liftAndCatchIO $ 
+            quickQuery conn ("Select * from tools order by " ++ (response'))[]
+        let rows = convert2Text table
+        let newHtml = toHtml $ blazeTable colNames rows
+        Scty.html $ Ht.renderHtml newHtml 
     ----
       addroute GET "/test3" $ do -- 
         maybBuilder<- renderTemplate hSt "receipt"
@@ -98,6 +109,13 @@ main = do
             Nothing -> return Bldr.empty
         Scty.html $ TE.decodeUtf8 $ toLazyByteString bdr
       return ()
+--------------------------------------------------------------------------------
+--take off any extra quotes, then add back quotes in case of double words for 
+--sql values
+sanitizeString::String->String
+sanitizeString str = 
+    let noQuote= P.filter (\x->x /= '"') str
+    in "`" ++ noQuote ++ "`"
 --------------------------------------------------------------------------------
 convertSql2Text::[SqlValue]->[T.Text]
 convertSql2Text [] = []
