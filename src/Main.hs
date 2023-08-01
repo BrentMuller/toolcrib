@@ -1,9 +1,12 @@
 {-# LANGUAGE OverloadedStrings #-}
 module Main where
 import Prelude as P
-import Control.Monad (forM_)
+--import Control.Monad (forM_)
+import Control.Monad 
+import Control.Monad.IO.Class 
 import Database.HDBC
 import Database.HDBC.ODBC
+--import Database.HDBC.MySQL
 import Data.ByteString.Lazy as BS 
 import Data.HashMap.Strict as Hash
 import Data.Monoid (mconcat)
@@ -15,7 +18,7 @@ import Heist
 import Heist.Interpreted as I
 import Network.HTTP.Types
 import qualified Data.Text.Lazy as LT
-import Lens.Simple as L
+import Control.Lens as L
 import Network.Wai.Middleware.Static
 import Text.Blaze.Html5 as H hiding (main)
 import Text.Blaze.Html5.Attributes as A
@@ -28,17 +31,34 @@ import Web.Scotty as Scty
 import Web.Scotty.Internal.Types
 ------
 import BlazeUtil
+-- import RTSSignalBlocker
 --------------------------------------------------------------------------------
 templateLocation::Text
 templateLocation = "c:/Users/brent/toolcrib/templates/"
 --------------------------------------------------------------------------------
+connectionString1::String
+connectionString1 = "Driver={MariaDB ODBC 3.1 Driver};\
+                            \Server=192.168.0.19;Database=diamondoj;\
+                            \Uid=root;Pwd=!Diamond714;Port=3307"
+connectionString2::String
+connectionString2 = "DSN=DiamondMfgReadOnly;ServerName=192.168.0.27.1583;ArrayFetchOn=1;\
+\ArrayBufferSize=8;TransportHint=TCP;DBQ=DIAMONDMFG\
+\          ;OpenMode=1;ClientVersion=15.00.050.000;CodePageConvert=1252;\
+\PvClientEncoding=CP1252;PvServerEncoding=CP1252;PvTranslate=auto;AutoDoubleQuote=0;"
+
+connectionString3::String
+connectionString3 = "DSN=diamondoj;Trace=Yes;TraceFile=trace.log;"
+
 connectionString::String
-connectionString = "Driver={MySQL ODBC 8.0 Unicode Driver};\
-                            \Server=192.168.0.3;Database=diam_oj;\
-                            \Uid=root;Pwd=12thandEastman;"
+connectionString = connectionString1 
 --------------------------------------------------------------------------------
 main :: IO ()
 main = do
+
+--withRTSSignalsBlocked :: IO a -> IO a
+--  withRTSSignalsBlocked $ do
+    --    print "whoop"
+-- {-
     conn<-handleSqlError $ do
         conn <- connectODBC connectionString 
         return conn
@@ -48,6 +68,18 @@ main = do
 --    print =<< describeTable conn "tools"    
 --    conn<-catchSql connectDB (\e->print e)
     ----
+-- -}
+--    table <- do
+ --      stmt<-prepare conn "Select * from tools"
+  --     table<- fetchAllRows stmt
+   --    return table
+   -- print table
+{-
+    tables<-getTables conn 
+    print tables
+    desc <- describeTable conn "bin"    
+    print desc
+-}
     let hc =  set hcInterpretedSplices defaultInterpretedSplices $
               hcInterpretedSplices .~ ("tableSplice" ## tableSplice [] [[]]) $ 
               hcInterpretedSplices .~ ("intSplice" ## intSplice 1) $ 
@@ -57,7 +89,14 @@ main = do
     eitherHc <- initHeist (hc::HeistConfig ActionM)
     let hSt = getState eitherHc
     ------
-    scotty 3000 $ do
+    scotty 3000 $ doit conn hSt 
+
+--------------------------------------------------------------------------------
+doit:: Connection-> HeistState ActionM -> ScottyT LT.Text IO ()
+doit conn hSt = do 
+--      conn<- do 
+ --            liftM connectODBC connectionString 
+--      conn2<- return $ connectODBC connectionString 
       middleware $ staticPolicy (addBase "static")
     ----
       get "/test/:word" $ do
@@ -81,25 +120,43 @@ main = do
         Scty.html $ TE.decodeUtf8 $ toLazyByteString bdr
     ----
       addroute GET "/splice_tab" $ do 
-        colDesc <-liftAndCatchIO $describeTable conn "tools"    
+        colDesc <-liftAndCatchIO $ describeTable conn "tools"    
+--        colDesc <-liftAndCatchIO $ describeTable conn "ROUTING"    
         let colNames = fmap (T.pack.fst) colDesc
-        table<- liftAndCatchIO $ quickQuery conn "Select * from tools order by majorDia" []
+
+--        table<- liftAndCatchIO $ quickQuery conn "Select * from tools order by majorDia" []
+{-
+        table <-liftAndCatchIO $ do
+           stmt<-prepare conn "Select * from tools"
+           table<- fetchAllRows stmt
+           return table
         let rows = convert2Text table
         let ct = callTemplate "tools" ("tableSplice" ## tableSplice colNames rows)
         tst<-evalHeistT ct (TextNode "") hSt 
         let bdr = renderHtmlFragment UTF8 tst
-        Scty.html $ TE.decodeUtf8 $ toLazyByteString bdr
+-}
+--        Scty.html $ TE.decodeUtf8 $ toLazyByteString bdr
+
+--        Scty.html $ mconcat ["<h1>Scotty, beam me up!</h1>"]    
+        Scty.html $  LT.fromChunks colNames    
     ----
       addroute POST "/splice_tab" $ do 
-        response<-Scty.body
-        colDesc <-liftAndCatchIO $describeTable conn "tools"    
+            return ()
+{-        response<-Scty.body
+        colDesc <-liftAndCatchIO $ describeTable conn "tools"    
         let colNames = fmap (T.pack.fst) colDesc
         let response' = (sanitizeString.show) response
-        table<- liftAndCatchIO $ 
-            quickQuery conn ("Select * from tools order by " ++ (response'))[]
+
+--        table<- liftAndCatchIO $ 
+ --           quickQuery conn ("Select * from tools order by " ++ (response'))[]
+
+        stmt<-liftAndCatchIO $ prepare conn "Select * from tools"
+        table<- liftAndCatchIO $ fetchAllRows stmt
+
         let rows = convert2Text table
         let newHtml = toHtml $ blazeTable colNames rows
         Scty.html $ Ht.renderHtml newHtml 
+-}
     ----
       addroute GET "/test3" $ do -- 
         maybBuilder<- renderTemplate hSt "receipt"
@@ -108,6 +165,7 @@ main = do
                 return buildr
             Nothing -> return Bldr.empty
         Scty.html $ TE.decodeUtf8 $ toLazyByteString bdr
+
       return ()
 --------------------------------------------------------------------------------
 --take off any extra quotes, then add back quotes in case of double words for 
